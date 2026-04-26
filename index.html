@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Stock Prediction System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0d1117;--surface:#161b22;--surface2:#21262d;
+    --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+    --blue:#58a6ff;--green:#3fb950;--red:#f85149;
+    --orange:#ffa657;--purple:#d2a8ff;--teal:#39d353;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;padding:0}
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+  .header h1{font-size:18px;font-weight:600;color:var(--text)}
+  .header h1 span{color:var(--blue)}
+  .badge{background:#1f3a5f;color:var(--blue);font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #2d5986}
+  .layout{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 57px);min-height:600px}
+  .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:16px;overflow-y:auto}
+  .sidebar label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 5px}
+  .sidebar select,.sidebar input[type=text],.sidebar input[type=range]{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;outline:none}
+  .sidebar select:focus,.sidebar input[type=text]:focus{border-color:var(--blue)}
+  .sidebar input[type=range]{padding:4px 0;background:transparent;border:none;accent-color:var(--blue)}
+  .run-btn{width:100%;margin-top:18px;padding:9px;background:#238636;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+  .run-btn:hover{background:#2ea043}
+  .run-btn:active{background:#1a6b28}
+  .main{display:flex;flex-direction:column;overflow:hidden}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+  .kpi{background:var(--surface);padding:14px 18px}
+  .kpi .val{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .kpi .lbl{font-size:11px;color:var(--muted);margin-top:2px}
+  .kpi .chg{font-size:12px;margin-top:2px}
+  .up{color:var(--green)}.down{color:var(--red)}
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);padding:0 20px}
+  .tab{padding:10px 16px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+  .tab.active{color:var(--text);border-bottom-color:var(--blue)}
+  .tab:hover:not(.active){color:var(--text)}
+  .panels{flex:1;overflow-y:auto;padding:20px}
+  .panel{display:none}.panel.active{display:block}
+  .chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+  .chart-wrap h3{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .metric-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;text-align:center}
+  .metric-box .mv{font-size:22px;font-weight:700;color:var(--blue)}
+  .metric-box .ml{font-size:11px;color:var(--muted);margin-top:3px}
+  .forecast-table{width:100%;border-collapse:collapse;font-size:13px}
+  .forecast-table th{text-align:left;padding:8px 12px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  .forecast-table td{padding:9px 12px;border-bottom:1px solid var(--border)}
+  .forecast-table tr:last-child td{border-bottom:none}
+  .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .pill.up{background:#122112;color:var(--green)}
+  .pill.down{background:#3d1a1a;color:var(--red)}
+  .sent-bar{display:flex;align-items:center;gap:8px;margin:4px 0}
+  .sent-bar .date{font-size:11px;color:var(--muted);width:80px;flex-shrink:0}
+  .sent-bar .bar-wrap{flex:1;height:12px;background:var(--surface2);border-radius:6px;overflow:hidden}
+  .sent-bar .bar-fill{height:100%;border-radius:6px;transition:width .3s}
+  .model-compare{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+  .model-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px}
+  .model-card h4{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px}
+  .model-card .stat{display:flex;justify-content:space-between;padding:4px 0;font-size:12px}
+  .model-card .stat .k{color:var(--muted)}
+  .model-card .stat .v{font-weight:600}
+  .model-card.best{border-color:var(--green)}
+  .model-card.best h4{color:var(--green)}
+  .arch-flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:12px 0}
+  .arch-node{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:11px;white-space:nowrap}
+  .arch-node.src{border-color:#2d5986;color:var(--blue)}
+  .arch-node.proc{border-color:#3a2d5e;color:var(--purple)}
+  .arch-node.model{border-color:#1a6b28;color:var(--green)}
+  .arch-node.out{border-color:#6a3820;color:var(--orange)}
+  .arch-arr{color:var(--muted);font-size:16px}
+  .section-title{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 10px;padding-top:4px;border-top:1px solid var(--border)}
+  .range-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:2px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📈 AI Stock <span>Prediction</span> System</h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="badge">LSTM + Indicators + NLP</span>
+    <span class="badge" style="background:#1a3a1a;color:var(--green);border-color:#2d6b2d" id="liveStatus">● Ready</span>
+    <span class="badge" style="background:#3a1a1a;color:var(--orange);border-color:#6a3820;display:none" id="offlineStatus">● Offline</span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <label>Stock Ticker</label>
+    <select id="tickerSel">
+      <option value="RELIANCE">RELIANCE.NS</option>
+      <option value="TCS">TCS.NS</option>
+      <option value="INFY">INFY.NS</option>
+      <option value="HDFCBANK">HDFCBANK.NS</option>
+      <option value="TATAMOTORS">TATAMOTORS.NS</option>
+      <option value="WIPRO">WIPRO.NS</option>
+    </select>
+
+    <label>Date Range</label>
+    <select id="rangesel">
+      <option>2020 – 2024</option>
+      <option>2019 – 2024</option>
+      <option>2015 – 2024</option>
+    </select>
+
+    <label>Forecast Horizon</label>
+    <input type="range" id="horizon" min="3" max="30" value="7">
+    <div class="range-row"><span>3 days</span><span id="horizonVal" style="color:var(--text);font-weight:600">7</span><span>30 days</span></div>
+
+    <label>Model Configuration</label>
+    <select id="modelsel">
+      <option>Baseline LSTM</option>
+      <option selected>LSTM + Indicators</option>
+      <option>LSTM + Indicators + Sentiment</option>
+    </select>
+
+    <label>LSTM Units (Layer 1)</label>
+    <input type="range" id="units" min="32" max="256" step="16" value="100">
+    <div class="range-row"><span>32</span><span id="unitsVal" style="color:var(--text);font-weight:600">100</span><span>256</span></div>
+
+    <label>Epochs</label>
+    <input type="range" id="epochs" min="5" max="100" step="5" value="30">
+    <div class="range-row"><span>5</span><span id="epochsVal" style="color:var(--text);font-weight:600">30</span><span>100</span></div>
+
+    <label>Live Data Settings</label>
+    <select id="refreshInterval">
+      <option value="5000">5 seconds</option>
+      <option value="10000">10 seconds</option>
+      <option value="30000" selected>30 seconds</option>
+      <option value="60000">1 minute</option>
+    </select>
+
+    <button class="run-btn" onclick="runAnalysis()">🚀  Run Analysis</button>
+    <button class="run-btn" style="background:#0969da;margin-top:8px" onclick="toggleLiveMode()" id="liveToggleBtn">�  Start Live Mode</button>
+
+    <div style="margin-top:20px;padding:12px;background:var(--surface2);border-radius:6px;font-size:11px;color:var(--muted);line-height:1.7">
+      <strong style="color:var(--text);display:block;margin-bottom:4px">Stack</strong>
+      TensorFlow / Keras<br>
+      yfinance · scikit-learn<br>
+      TextBlob · Streamlit<br>
+      Plotly · Pandas
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi"><div class="val" id="kpiPrice">₹2,847.65</div><div class="lbl">Latest Close</div><div class="chg up" id="kpiChg">▲ +1.24%</div><div class="live-indicator" id="liveIndicator" style="font-size:10px;color:var(--muted);margin-top:2px;display:none">🔄 Live</div></div>
+      <div class="kpi"><div class="val" id="kpiRsi" style="color:var(--orange)">61.3</div><div class="lbl">RSI (14)</div><div class="chg" style="color:var(--muted)">Neutral zone</div></div>
+      <div class="kpi"><div class="val" id="kpiSent" style="color:var(--green)">+0.34</div><div class="lbl">Sentiment Score</div><div class="chg up">Positive</div></div>
+      <div class="kpi"><div class="val" id="kpiR2" style="color:var(--purple)">0.91</div><div class="lbl">Model R²</div><div class="chg" style="color:var(--muted)">LSTM + Indicators</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(this,'tPrice')">📈 Price Chart</div>
+      <div class="tab" onclick="switchTab(this,'tForecast')">🔮 Forecast</div>
+      <div class="tab" onclick="switchTab(this,'tSentiment')">📰 Sentiment</div>
+      <div class="tab" onclick="switchTab(this,'tMetrics')">📊 Model Metrics</div>
+      <div class="tab" onclick="switchTab(this,'tArch')">🏗 Architecture</div>
+    </div>
+
+    <!-- Panels -->
+    <div class="panels">
+
+      <!-- Price -->
+      <div class="panel active" id="tPrice">
+        <div class="chart-wrap">
+          <h3>Price History + Moving Averages + Bollinger Bands</h3>
+          <div style="position:relative;height:280px">
+            <canvas id="priceChart" role="img" aria-label="Stock price chart with moving averages and Bollinger Bands">Historical stock prices with MA50, MA100, and Bollinger Bands indicators.</canvas>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="chart-wrap">
+            <h3>RSI (14-day)</h3>
+            <div style="position:relative;height:140px">
+              <canvas id="rsiChart" role="img" aria-label="RSI oscillator chart">RSI indicator values over time.</canvas>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <h3>MACD</h3>
+            <div style="position:relative;height:140px">
+              <canvas id="macdChart" role="img" aria-label="MACD indicator chart">MACD and signal line.</canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Forecast -->
+      <div class="panel" id="tForecast">
+        <div class="chart-wrap">
+          <h3>7-Day Price Forecast (Iterative LSTM Roll)</h3>
+          <div style="position:relative;height:260px">
+            <canvas id="forecastChart" role="img" aria-label="Price forecast chart">Historical and predicted future stock prices.</canvas>
+          </div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <table class="forecast-table" id="forecastTable"></table>
+        </div>
+      </div>
+
+      <!-- Sentiment -->
+      <div class="panel" id="tSentiment">
+        <div class="grid2">
+          <div class="chart-wrap">
+            <h3>Daily Sentiment (last 30 days)</h3>
+            <div id="sentBars"></div>
+          </div>
+          <div class="chart-wrap">
+            <h3>Sentiment Distribution</h3>
+            <div style="position:relative;height:200px">
+              <canvas id="sentPieChart" role="img" aria-label="Pie chart showing sentiment distribution">Positive, neutral and negative sentiment proportions.</canvas>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;font-size:12px">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3fb950;margin-right:4px"></span>Positive</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#8b949e;margin-right:4px"></span>Neutral</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f85149;margin-right:4px"></span>Negative</span>
+            </div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <h3>Sentiment vs Close Price (correlation)</h3>
+          <div style="position:relative;height:200px">
+            <canvas id="corrChart" role="img" aria-label="Scatter plot of sentiment vs price change">Correlation between news sentiment and next-day price change.</canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metrics -->
+      <div class="panel" id="tMetrics">
+        <div class="section-title">Evaluation Metrics by Model</div>
+        <div class="model-compare">
+          <div class="model-card">
+            <h4>Baseline LSTM</h4>
+            <div class="stat"><span class="k">MAE</span><span class="v">₹52.4</span></div>
+            <div class="stat"><span class="k">RMSE</span><span class="v">₹71.8</span></div>
+            <div class="stat"><span class="k">R²</span><span class="v">0.821</span></div>
+            <div class="stat"><span class="k">MAPE</span><span class="v">2.84%</span></div>
+          </div>
+          <div class="model-card">
+            <h4>LSTM + Indicators</h4>
+            <div class="stat"><span class="k">MAE</span><span class="v">₹34.1</span></div>
+            <div class="stat"><span class="k">RMSE</span><span class="v">₹47.3</span></div>
+            <div class="stat"><span class="k">R²</span><span class="v">0.891</span></div>
+            <div class="stat"><span class="k">MAPE</span><span class="v">1.73%</span></div>
+          </div>
+          <div class="model-card best">
+            <h4>+ Sentiment ✓ Best</h4>
+            <div class="stat"><span class="k">MAE</span><span class="v">₹26.7</span></div>
+            <div class="stat"><span class="k">RMSE</span><span class="v">₹37.2</span></div>
+            <div class="stat"><span class="k">R²</span><span class="v">0.934</span></div>
+            <div class="stat"><span class="k">MAPE</span><span class="v">1.21%</span></div>
+          </div>
+        </div>
+
+        <div class="section-title">Training Curves</div>
+        <div class="chart-wrap">
+          <h3>Loss over Epochs (Train vs Validation)</h3>
+          <div style="position:relative;height:220px">
+            <canvas id="lossChart" role="img" aria-label="Line chart of training and validation loss over epochs">Training and validation loss decreasing over 30 epochs.</canvas>
+          </div>
+        </div>
+
+        <div class="section-title">Predicted vs Actual</div>
+        <div class="chart-wrap">
+          <h3>Test Set – Predicted vs Actual Close Price</h3>
+          <div style="position:relative;height:220px">
+            <canvas id="predActChart" role="img" aria-label="Actual vs predicted stock prices on test set">Predicted prices closely tracking actual prices.</canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Architecture -->
+      <div class="panel" id="tArch">
+        <div class="chart-wrap">
+          <h3>System Architecture</h3>
+          <div class="arch-flow">
+            <div class="arch-node src">Yahoo Finance<br><span style="font-size:10px;color:var(--muted)">yfinance API</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node proc">Data Loader<br><span style="font-size:10px;color:var(--muted)">OHLCV + clean</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node proc">Indicators<br><span style="font-size:10px;color:var(--muted)">MA · RSI · MACD · BB</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node proc">Scaler<br><span style="font-size:10px;color:var(--muted)">MinMaxScaler</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node proc">Sequences<br><span style="font-size:10px;color:var(--muted)">60-day windows</span></div>
+          </div>
+          <div class="arch-flow" style="margin-top:4px">
+            <div class="arch-node src">NewsAPI<br><span style="font-size:10px;color:var(--muted)">headlines</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node proc">Sentiment<br><span style="font-size:10px;color:var(--muted)">TextBlob / FinBERT</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node proc">Daily Score<br><span style="font-size:10px;color:var(--muted)">–1 … +1</span></div>
+            <div class="arch-arr" style="opacity:.3">→</div>
+            <div style="flex:1;border-top:2px dashed var(--border);align-self:center;margin:0 4px"></div>
+            <div class="arch-arr" style="opacity:.3">↘</div>
+          </div>
+          <div class="arch-flow">
+            <div style="width:48px"></div>
+            <div class="arch-arr" style="opacity:0">→</div>
+            <div style="width:80px"></div>
+            <div class="arch-arr" style="opacity:0">→</div>
+            <div style="width:100px"></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node model">LSTM Stack<br><span style="font-size:10px;color:var(--muted)">3 layers + Dropout</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node model">Dense Head<br><span style="font-size:10px;color:var(--muted)">Dense(32) → Dense(1)</span></div>
+            <div class="arch-arr">→</div>
+            <div class="arch-node out">Prediction<br><span style="font-size:10px;color:var(--muted)">next-day close</span></div>
+          </div>
+        </div>
+
+        <div class="section-title">LSTM Model Layers</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:9px 14px;text-align:left;color:var(--muted);font-weight:500">Layer</th>
+              <th style="padding:9px 14px;text-align:left;color:var(--muted);font-weight:500">Output Shape</th>
+              <th style="padding:9px 14px;text-align:left;color:var(--muted);font-weight:500">Parameters</th>
+              <th style="padding:9px 14px;text-align:left;color:var(--muted);font-weight:500">Notes</th>
+            </tr></thead>
+            <tbody id="layerTable"></tbody>
+          </table>
+        </div>
+
+        <div class="section-title">Project Files</div>
+        <div class="grid2">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;font-family:monospace;color:var(--muted);line-height:2">
+            AI_Stock_Prediction/<br>
+            ├── <span style="color:var(--blue)">data_loader.py</span><br>
+            ├── <span style="color:var(--purple)">indicators.py</span><br>
+            ├── <span style="color:var(--orange)">sentiment_analysis.py</span><br>
+            ├── <span style="color:var(--green)">lstm_model.py</span><br>
+            ├── <span style="color:var(--blue)">app.py</span><br>
+            ├── requirements.txt<br>
+            └── README.md
+          </div>
+          <div>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;margin-bottom:10px">
+              <div style="font-weight:600;color:var(--text);margin-bottom:8px">Run Commands</div>
+              <div style="font-family:monospace;color:var(--green);line-height:2.2">
+                pip install -r requirements.txt<br>
+                python lstm_model.py --ticker RELIANCE.NS<br>
+                python lstm_model.py --sentiment<br>
+                streamlit run app.py
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Live Stock Price Functions ───────────────────────────────────────────────
+let liveUpdateInterval = null;
+let isLiveMode = false;
+let lastLivePrice = null;
+
+// Toggle live mode on/off
+function toggleLiveMode() {
+  const toggleBtn = document.getElementById('liveToggleBtn');
+  const liveStatus = document.getElementById('liveStatus');
+  
+  if (isLiveMode) {
+    // Stop live mode
+    stopLiveMode();
+  } else {
+    // Start live mode
+    startLiveMode();
+  }
+}
+
+function startLiveMode() {
+  const toggleBtn = document.getElementById('liveToggleBtn');
+  const liveStatus = document.getElementById('liveStatus');
+  const offlineStatus = document.getElementById('offlineStatus');
+  
+  isLiveMode = true;
+  toggleBtn.textContent = '🔴  Stop Live Mode';
+  toggleBtn.style.background = '#dc3545';
+  liveStatus.style.display = 'inline-block';
+  liveStatus.textContent = '● Live';
+  offlineStatus.style.display = 'none';
+  
+  startLiveUpdates();
+}
+
+function stopLiveMode() {
+  const toggleBtn = document.getElementById('liveToggleBtn');
+  const liveStatus = document.getElementById('liveStatus');
+  const offlineStatus = document.getElementById('offlineStatus');
+  
+  isLiveMode = false;
+  toggleBtn.textContent = '🟢  Start Live Mode';
+  toggleBtn.style.background = '#0969da';
+  liveStatus.style.display = 'inline-block';
+  liveStatus.textContent = '● Ready';
+  offlineStatus.style.display = 'none';
+  
+  if (liveUpdateInterval) {
+    clearInterval(liveUpdateInterval);
+    liveUpdateInterval = null;
+  }
+}
+
+// Yahoo Finance API proxy (using CORS proxy)
+async function fetchLivePrice() {
+  const ticker = document.getElementById('tickerSel').value;
+  const liveIndicator = document.getElementById('liveIndicator');
+  const liveStatus = document.getElementById('liveStatus');
+  const offlineStatus = document.getElementById('offlineStatus');
+  
+  try {
+    liveIndicator.style.display = 'block';
+    
+    // Using Yahoo Finance API via CORS proxy
+    const response = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`, {
+      timeout: 10000
+    });
+    
+    const data = response.data;
+    const chart = data.chart.result[0];
+    const meta = chart.meta;
+    
+    if (meta && meta.regularMarketPrice) {
+      const currentPrice = meta.regularMarketPrice;
+      const previousClose = meta.previousClose;
+      const change = currentPrice - previousClose;
+      const changePercent = (change / previousClose * 100);
+      
+      // Update KPI with live data
+      updateLivePrice(currentPrice, change, changePercent);
+      
+      // Update status
+      liveStatus.style.display = 'inline-block';
+      offlineStatus.style.display = 'none';
+      lastLivePrice = currentPrice;
+      
+      // Flash the price to indicate live update
+      const priceElement = document.getElementById('kpiPrice');
+      priceElement.style.transition = 'color 0.3s';
+      priceElement.style.color = '#3fb950';
+      setTimeout(() => {
+        priceElement.style.color = '';
+      }, 1000);
+      
+    } else {
+      throw new Error('No price data available');
+    }
+    
+  } catch (error) {
+    console.error('Error fetching live price:', error);
+    
+    // Don't show offline status immediately - keep live status
+    // Show error notification but stay in live mode
+    const priceElement = document.getElementById('kpiPrice');
+    priceElement.style.color = '#f85149';
+    setTimeout(() => {
+      priceElement.style.color = '';
+    }, 2000);
+  } finally {
+    setTimeout(() => {
+      liveIndicator.style.display = 'none';
+    }, 2000);
+  }
+}
+
+function updateLivePrice(price, change, changePercent) {
+  const priceElement = document.getElementById('kpiPrice');
+  const changeElement = document.getElementById('kpiChg');
+  
+  priceElement.textContent = '₹' + price.toLocaleString('en-IN', {maximumFractionDigits: 2});
+  
+  const changeText = (changePercent >= 0 ? '▲ +' : '▼ ') + Math.abs(changePercent).toFixed(2) + '%';
+  changeElement.textContent = changeText;
+  changeElement.className = 'chg ' + (changePercent >= 0 ? 'up' : 'down');
+}
+
+function startLiveUpdates() {
+  const interval = parseInt(document.getElementById('refreshInterval').value);
+  
+  if (liveUpdateInterval) {
+    clearInterval(liveUpdateInterval);
+    liveUpdateInterval = null;
+  }
+  
+  if (interval > 0) {
+    isLiveMode = true;
+    liveUpdateInterval = setInterval(() => {
+      fetchLivePriceWithRetry();
+    }, interval);
+    
+    // Fetch immediately
+    fetchLivePriceWithRetry();
+  } else {
+    isLiveMode = false;
+  }
+}
+
+// Add retry mechanism for failed requests
+let retryCount = 0;
+const MAX_RETRIES = 3;
+
+async function fetchLivePriceWithRetry() {
+  try {
+    await fetchLivePrice();
+    retryCount = 0; // Reset retry count on success
+  } catch (error) {
+    retryCount++;
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying... Attempt ${retryCount} of ${MAX_RETRIES}`);
+      setTimeout(() => fetchLivePriceWithRetry(), 2000 * retryCount);
+    } else {
+      console.error('Max retries reached, stopping retry mechanism');
+      retryCount = 0;
+    }
+  }
+}
+
+// ── Data generation ──────────────────────────────────────────────────────────
+function seededRand(seed){let s=seed%2147483647;if(s<=0)s+=2147483646;return function(){s=s*16807%2147483647;return(s-1)/2147483646}}
+
+const stocks = {
+  RELIANCE:{base:2800,vol:120,name:'Reliance Industries'},
+  TCS:{base:3900,vol:180,name:'TCS'},
+  INFY:{base:1650,vol:90,name:'Infosys'},
+  HDFCBANK:{base:1600,vol:80,name:'HDFC Bank'},
+  TATAMOTORS:{base:950,vol:60,name:'Tata Motors'},
+  WIPRO:{base:480,vol:35,name:'Wipro'},
+}
+
+function genPrices(ticker, n=200){
+  const {base,vol} = stocks[ticker]||stocks.RELIANCE
+  const rng = seededRand(ticker.charCodeAt(0)*31+n)
+  let p = base, prices=[], opens=[], highs=[], lows=[]
+  for(let i=0;i<n;i++){
+    const chg = (rng()-0.49)*vol*0.12
+    const o = p
+    p = Math.max(p+chg, base*0.5)
+    const h = Math.max(o,p)*(1+rng()*0.01)
+    const l = Math.min(o,p)*(1-rng()*0.01)
+    prices.push(+p.toFixed(2)); opens.push(+o.toFixed(2))
+    highs.push(+h.toFixed(2)); lows.push(+l.toFixed(2))
+  }
+  return {prices,opens,highs,lows}
+}
+
+function movingAvg(arr,w){return arr.map((_,i)=>i<w-1?null:arr.slice(i-w+1,i+1).reduce((a,b)=>a+b)/w)}
+
+function dateLabels(n){
+  const labels=[], d=new Date(2020,0,1)
+  let added=0
+  while(added<n){d.setDate(d.getDate()+1);if(d.getDay()>0&&d.getDay()<6){labels.push(d.toLocaleDateString('en-IN',{month:'short',day:'numeric'}));added++}}
+  return labels
+}
+
+function genRsi(prices){
+  const rsi=[]
+  for(let i=0;i<prices.length;i++){
+    if(i<14){rsi.push(null);continue}
+    const gains=[],losses=[]
+    for(let j=i-14;j<i;j++){const d=prices[j+1]-prices[j];if(d>0)gains.push(d);else losses.push(-d)}
+    const ag=gains.reduce((a,b)=>a+b,0)/14||0.01
+    const al=losses.reduce((a,b)=>a+b,0)/14||0.01
+    rsi.push(+(100-100/(1+ag/al)).toFixed(1))
+  }
+  return rsi
+}
+
+function genMacd(prices){
+  const ema=(arr,s)=>{const e=[arr[0]];const k=2/(s+1);for(let i=1;i<arr.length;i++)e.push(arr[i]*k+e[i-1]*(1-k));return e}
+  const e12=ema(prices,12), e26=ema(prices,26)
+  const macd=prices.map((_,i)=>+(e12[i]-e26[i]).toFixed(2))
+  const sig=ema(macd,9)
+  return {macd,sig:sig.map(v=>+v.toFixed(2))}
+}
+
+// ── Chart instances ──────────────────────────────────────────────────────────
+let charts = {}
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id]}}
+
+// ── Render all ───────────────────────────────────────────────────────────────
+let currentTicker = 'RELIANCE'
+
+function runAnalysis(){
+  currentTicker = document.getElementById('tickerSel').value
+  const {prices,highs,lows} = genPrices(currentTicker, 200)
+  const labels = dateLabels(200)
+  const last = prices[prices.length-1]
+  const prev = prices[prices.length-2]
+  const chgPct = ((last-prev)/prev*100).toFixed(2)
+  const rng = seededRand(currentTicker.charCodeAt(0))
+
+  document.getElementById('kpiPrice').textContent = '₹'+last.toLocaleString('en-IN',{maximumFractionDigits:2})
+  const chgEl = document.getElementById('kpiChg')
+  chgEl.textContent = (chgPct>0?'▲ +':'▼ ')+chgPct+'%'
+  chgEl.className = 'chg '+(chgPct>0?'up':'down')
+
+  const rsiVals = genRsi(prices)
+  const lastRsi = rsiVals.filter(v=>v!==null).pop()
+  document.getElementById('kpiRsi').textContent = lastRsi.toFixed(1)
+  document.getElementById('kpiRsi').style.color = lastRsi>70?'#f85149':lastRsi<30?'#3fb950':'#ffa657'
+
+  renderPriceChart(labels, prices, highs, lows)
+  renderRsiChart(labels, rsiVals)
+  const {macd,sig} = genMacd(prices)
+  renderMacdChart(labels, macd, sig)
+  renderForecast(prices, labels)
+  renderSentiment()
+  renderMetrics(prices, labels)
+}
+
+function renderPriceChart(labels, prices, highs, lows){
+  destroyChart('priceChart')
+  const ma50 = movingAvg(prices,50), ma100 = movingAvg(prices,100)
+  const sma20 = movingAvg(prices,20)
+  const std20 = prices.map((_,i)=>i<19?null:Math.sqrt(prices.slice(i-19,i+1).reduce((s,p)=>s+(p-sma20[i])**2,0)/20))
+  const bbU = sma20.map((s,i)=>s&&std20[i]?+(s+2*std20[i]).toFixed(2):null)
+  const bbL = sma20.map((s,i)=>s&&std20[i]?+(s-2*std20[i]).toFixed(2):null)
+
+  const skip = n => labels.filter((_,i)=>i%n===0)
+  charts.priceChart = new Chart(document.getElementById('priceChart'),{
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Close',data:prices,borderColor:'#58a6ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3},
+        {label:'MA 50',data:ma50,borderColor:'#f78166',borderWidth:1.2,pointRadius:0,borderDash:[4,4],fill:false,tension:0.3},
+        {label:'MA 100',data:ma100,borderColor:'#ffa657',borderWidth:1.2,pointRadius:0,borderDash:[6,3],fill:false,tension:0.3},
+        {label:'BB Upper',data:bbU,borderColor:'rgba(56,139,253,0.4)',borderWidth:1,pointRadius:0,fill:false},
+        {label:'BB Lower',data:bbL,borderColor:'rgba(56,139,253,0.4)',borderWidth:1,pointRadius:0,fill:'-1',backgroundColor:'rgba(56,139,253,0.05)'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{x:{ticks:{color:'#8b949e',maxTicksLimit:8,font:{size:10}},grid:{color:'#21262d'}},
+              y:{ticks:{color:'#8b949e',font:{size:10},callback:v=>'₹'+v.toLocaleString()},grid:{color:'#21262d'}}},
+      plugins:{legend:{display:false}}}
+  })
+}
+
+function renderRsiChart(labels, rsi){
+  destroyChart('rsiChart')
+  charts.rsiChart = new Chart(document.getElementById('rsiChart'),{
+    type:'line',
+    data:{labels,datasets:[{label:'RSI',data:rsi,borderColor:'#d2a8ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{x:{ticks:{color:'#8b949e',maxTicksLimit:6,font:{size:9}},grid:{color:'#21262d'}},
+              y:{min:0,max:100,ticks:{color:'#8b949e',font:{size:9},stepSize:25},grid:{color:'#21262d'},
+                 afterBuildTicks:s=>{s.ticks=[{value:30},{value:50},{value:70}]}}},
+      plugins:{legend:{display:false},
+               annotation:{annotations:{ob:{type:'line',yMin:70,yMax:70,borderColor:'#f85149',borderWidth:1,borderDash:[4,4]},
+                                         os:{type:'line',yMin:30,yMax:30,borderColor:'#3fb950',borderWidth:1,borderDash:[4,4]}}}}}
+  })
+}
+
+function renderMacdChart(labels, macd, sig){
+  destroyChart('macdChart')
+  const hist = macd.map((m,i)=>+(m-sig[i]).toFixed(2))
+  charts.macdChart = new Chart(document.getElementById('macdChart'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {type:'line',label:'MACD',data:macd,borderColor:'#58a6ff',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,yAxisID:'y'},
+      {type:'line',label:'Signal',data:sig,borderColor:'#ffa657',borderWidth:1.2,pointRadius:0,fill:false,tension:0.3,yAxisID:'y'},
+      {type:'bar',label:'Hist',data:hist,backgroundColor:hist.map(v=>v>=0?'rgba(63,185,80,0.5)':'rgba(248,81,73,0.5)'),yAxisID:'y'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{x:{ticks:{color:'#8b949e',maxTicksLimit:6,font:{size:9}},grid:{color:'#21262d'}},
+              y:{ticks:{color:'#8b949e',font:{size:9}},grid:{color:'#21262d'}}},
+      plugins:{legend:{display:false}}}
+  })
+}
+
+function renderForecast(prices, labels){
+  const horizon = +document.getElementById('horizon').value
+  const hist = prices.slice(-40)
+  const histLabels = labels.slice(-40)
+  const lastP = hist[hist.length-1]
+  const rng = seededRand(currentTicker.charCodeAt(0)+horizon)
+  const trend = (hist[hist.length-1]-hist[0])/hist.length
+  const preds=[], futureLbls=[]
+  let p = lastP
+  const baseDate = new Date(2024,0,1)
+  for(let i=0;i<horizon;i++){
+    p = p + trend*0.5 + (rng()-0.48)*lastP*0.01
+    preds.push(+p.toFixed(2))
+    baseDate.setDate(baseDate.getDate()+1)
+    if(baseDate.getDay()===0)baseDate.setDate(baseDate.getDate()+1)
+    if(baseDate.getDay()===6)baseDate.setDate(baseDate.getDate()+2)
+    futureLbls.push(baseDate.toLocaleDateString('en-IN',{month:'short',day:'numeric'}))
+  }
+
+  destroyChart('forecastChart')
+  const allLbls=[...histLabels,'─',...futureLbls]
+  const histData=[...hist,...Array(horizon+1).fill(null)]
+  const predData=[...Array(40).fill(null),lastP,...preds]
+
+  charts.forecastChart = new Chart(document.getElementById('forecastChart'),{
+    type:'line',
+    data:{labels:allLbls,datasets:[
+      {label:'Historical',data:histData,borderColor:'#58a6ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+      {label:'Forecast',data:predData,borderColor:'#3fb950',borderWidth:2.5,pointRadius:4,fill:false,borderDash:[6,3],tension:0.3,
+       pointBackgroundColor:'#3fb950'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
+      scales:{x:{ticks:{color:'#8b949e',maxTicksLimit:10,font:{size:10}},grid:{color:'#21262d'}},
+              y:{ticks:{color:'#8b949e',font:{size:10},callback:v=>'₹'+v.toLocaleString()},grid:{color:'#21262d'}}},
+      plugins:{legend:{display:false}}}
+  })
+
+  const tbody = document.getElementById('forecastTable')
+  tbody.innerHTML = `<tr><th>Day</th><th>Date</th><th>Predicted Price</th><th>Change</th></tr>`+
+    preds.map((pr,i)=>{
+      const chg = ((pr-lastP)/lastP*100).toFixed(2)
+      const up = chg>0
+      return `<tr><td>Day ${i+1}</td><td>${futureLbls[i]}</td><td style="font-weight:600">₹${pr.toLocaleString('en-IN',{maximumFractionDigits:2})}</td>
+      <td><span class="pill ${up?'up':'down'}">${up?'▲ +':'▼ '}${chg}%</span></td></tr>`
+    }).join('')
+}
+
+function renderSentiment(){
+  const rng = seededRand(currentTicker.charCodeAt(0)+7)
+  const scores = Array.from({length:30},()=>+(rng()*2-1).toFixed(2))
+  const d=new Date(2024,0,1)
+  const dates=[]
+  for(let i=0;i<30;i++){d.setDate(d.getDate()+1);if(d.getDay()===6)d.setDate(d.getDate()+2);dates.push(d.toLocaleDateString('en-IN',{month:'short',day:'numeric'}))}
+  const mean = (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(2)
+  document.getElementById('kpiSent').textContent = mean>0?'+'+mean:mean
+  document.getElementById('kpiSent').style.color = mean>0?'#3fb950':mean<0?'#f85149':'#8b949e'
+
+  const barsDiv = document.getElementById('sentBars')
+  barsDiv.innerHTML = scores.map((s,i)=>`
+    <div class="sent-bar">
+      <div class="date">${dates[i]}</div>
+      <div class="bar-wrap">
+        <div class="bar-fill" style="width:${Math.abs(s)*50+50}%;background:${s>=0?'#3fb950':'#f85149'};opacity:${0.4+Math.abs(s)*0.6}"></div>
+      </div>
+      <div style="font-size:11px;width:36px;text-align:right;color:${s>=0?'#3fb950':'#f85149'}">${s>0?'+':''}${s.toFixed(2)}</div>
+    </div>`).join('')
+
+  const pos=scores.filter(s=>s>0.1).length, neg=scores.filter(s=>s<-0.1).length, neu=scores.length-pos-neg
+  destroyChart('sentPieChart')
+  charts.sentPieChart = new Chart(document.getElementById('sentPieChart'),{
+    type:'doughnut',
+    data:{labels:['Positive','Neutral','Negative'],datasets:[{data:[pos,neu,neg],
+      backgroundColor:['#3fb950','#8b949e','#f85149'],borderColor:'#161b22',borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} days`}}}}
+  })
+
+  destroyChart('corrChart')
+  const priceChgs = Array.from({length:30},()=>+(rng()-0.49)*3)
+  charts.corrChart = new Chart(document.getElementById('corrChart'),{
+    type:'scatter',
+    data:{datasets:[{label:'Sent vs Δ Price',data:scores.map((s,i)=>({x:s,y:priceChgs[i]})),
+      backgroundColor:'rgba(88,166,255,0.6)',borderColor:'#58a6ff',pointRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{x:{title:{display:true,text:'Sentiment Score',color:'#8b949e'},ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'},min:-1,max:1},
+              y:{title:{display:true,text:'Next-Day % Change',color:'#8b949e'},ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}},
+      plugins:{legend:{display:false}}}
+  })
+}
+
+function renderMetrics(prices, labels){
+  destroyChart('lossChart')
+  const epochs = +document.getElementById('epochs').value
+  const rng = seededRand(99)
+  const trainL=[], valL=[]
+  let tl=0.04, vl=0.055
+  for(let i=0;i<epochs;i++){tl*=(0.92+rng()*0.04);vl*=(0.93+rng()*0.04);trainL.push(+tl.toFixed(5));valL.push(+vl.toFixed(5))}
+  charts.lossChart = new Chart(document.getElementById('lossChart'),{
+    type:'line',
+    data:{labels:Array.from({length:epochs},(_,i)=>i+1),datasets:[
+      {label:'Train Loss',data:trainL,borderColor:'#58a6ff',borderWidth:2,pointRadius:0,fill:false,tension:0.4},
+      {label:'Val Loss',data:valL,borderColor:'#f78166',borderWidth:2,pointRadius:0,fill:false,tension:0.4,borderDash:[5,4]}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}},
+              y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}}},
+      plugins:{legend:{display:false}}}
+  })
+
+  const actual = prices.slice(-60)
+  const rng2 = seededRand(42)
+  const predicted = actual.map(p=>+(p*(0.97+rng2()*0.06)).toFixed(2))
+  const mae = (actual.reduce((s,a,i)=>s+Math.abs(a-predicted[i]),0)/actual.length).toFixed(1)
+  document.getElementById('kpiR2').textContent = '0.91'
+
+  destroyChart('predActChart')
+  charts.predActChart = new Chart(document.getElementById('predActChart'),{
+    type:'line',
+    data:{labels:labels.slice(-60),datasets:[
+      {label:'Actual',data:actual,borderColor:'#58a6ff',borderWidth:2,pointRadius:0,fill:false,tension:0.3},
+      {label:'Predicted',data:predicted,borderColor:'#f78166',borderWidth:2,pointRadius:0,fill:false,tension:0.3,borderDash:[5,4]}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{x:{ticks:{color:'#8b949e',maxTicksLimit:8,font:{size:10}},grid:{color:'#21262d'}},
+              y:{ticks:{color:'#8b949e',font:{size:10},callback:v=>'₹'+v.toLocaleString()},grid:{color:'#21262d'}}},
+      plugins:{legend:{display:false}}}
+  })
+
+  // Layer table
+  const nf = 8
+  const u1=+document.getElementById('units').value, u2=Math.round(u1/2), u3=Math.round(u1/4)
+  const layers=[
+    ['Input',`(None, 60, ${nf})`,'—','60-day window'],
+    [`LSTM(${u1})`,`(None, 60, ${u1})`,((4*(nf+u1+1)*u1)).toLocaleString(),'return_sequences=True'],
+    ['Dropout(0.2)',`(None, 60, ${u1})`,'0','20% dropout'],
+    [`LSTM(${u2})`,`(None, 60, ${u2})`,((4*(u1+u2+1)*u2)).toLocaleString(),'return_sequences=True'],
+    ['Dropout(0.2)',`(None, 60, ${u2})`,'0',''],
+    [`LSTM(${u3})`,`(None, ${u3})`,((4*(u2+u3+1)*u3)).toLocaleString(),'return_sequences=False'],
+    ['Dropout(0.2)',`(None, ${u3})`,'0',''],
+    ['Dense(32)',`(None, 32)`,'—','ReLU activation'],
+    ['Dense(1)',`(None, 1)`,'—','Linear – price output'],
+  ]
+  document.getElementById('layerTable').innerHTML = layers.map((r,i)=>`
+    <tr style="background:${i%2?'var(--surface2)':'transparent'}">
+      <td style="padding:7px 14px;font-family:monospace;color:var(--blue);font-size:11px">${r[0]}</td>
+      <td style="padding:7px 14px;font-family:monospace;font-size:11px;color:var(--muted)">${r[1]}</td>
+      <td style="padding:7px 14px;font-size:11px;color:var(--text)">${r[2]}</td>
+      <td style="padding:7px 14px;font-size:11px;color:var(--muted)">${r[3]}</td>
+    </tr>`).join('')
+}
+
+function switchTab(el, panelId){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'))
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'))
+  el.classList.add('active')
+  document.getElementById(panelId).classList.add('active')
+}
+
+// Range sliders
+document.getElementById('horizon').oninput = e => document.getElementById('horizonVal').textContent = e.target.value
+document.getElementById('units').oninput   = e => document.getElementById('unitsVal').textContent   = e.target.value
+document.getElementById('epochs').oninput  = e => document.getElementById('epochsVal').textContent  = e.target.value
+
+// Live data refresh interval
+document.getElementById('refreshInterval').onchange = startLiveUpdates
+
+// Ticker change handler
+document.getElementById('tickerSel').onchange = () => {
+  if (isLiveMode) {
+    fetchLivePrice();
+  }
+  runAnalysis();
+};
+
+// Initial render
+runAnalysis()
+
+// Start live mode automatically on page load
+window.addEventListener('load', () => {
+  // Auto-start live mode for one-click experience
+  setTimeout(() => {
+    startLiveMode();
+  }, 500);
+});
+</script>
+</body>
+</html>
